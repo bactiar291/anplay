@@ -14,9 +14,7 @@ AnPlay is a small Windows macro recorder/player with optional Groq Vision auto-s
 ## AI Stop Condition Examples
 
 ```text
-berhenti kalau sudah tidak error Unable to send a verification code
-kalau berhasil masuk nomornya dan hanya menunggu OTP maka berhenti
-berhenti kalau muncul input OTP, waiting for code, verification code, success, banned, atau blocked
+berhenti kalau xxxxx sukses atau berhenti kalau xxxxx gagal tinggal prompt saja 
 ```
 
 AnPlay uses a conservative verifier. It stops on clear success/OTP states and also stops on terminal failure states such as `Banned`, `Blocked`, `Suspended`, or `Too many attempts` to avoid continuing harmful loops.
