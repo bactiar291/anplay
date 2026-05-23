@@ -1,6 +1,6 @@
 # AnPlay
 
-AnPlay adalah macro recorder/player Windows statis. Tidak ada AI, tidak ada API key, dan tidak ada request internet.
+AnPlay adalah macro recorder/player Windows statis dengan tema Dark Focus. Tidak ada AI, tidak ada API key, dan tidak ada request internet.
 
 ## Quick Use
 
@@ -9,7 +9,8 @@ AnPlay adalah macro recorder/player Windows statis. Tidak ada AI, tidak ada API 
 - `Repeat loop`: ulangi replay.
 - `Loop limit = 0`: ulang terus sampai `PrtSc` atau `Stop` ditekan.
 - `Save` / `Load`: simpan atau load macro JSON.
-- `Dark theme`: tampilan gelap bawaan, bisa dimatikan dari UI.
+- `Gerak cursor halus`: replay mouse dibuat lebih natural mengikuti titik rekaman.
+- `Tema Dark Focus`: tampilan gelap bawaan.
 
 ## Build
 

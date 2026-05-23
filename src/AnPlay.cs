@@ -45,7 +45,6 @@ namespace AnPlayApp
         public bool LoopPlay { get; set; }
         public int MaxLoops { get; set; }
         public bool SmoothMouse { get; set; }
-        public bool DarkTheme { get; set; }
     }
 
     public class MainForm : Form
@@ -113,7 +112,6 @@ namespace AnPlayApp
         private NumericUpDown numMaxLoops;
         private CheckBox chkLoopPlay;
         private CheckBox chkSmooth;
-        private CheckBox chkDarkTheme;
         private TextBox txtLog;
 
         private Theme theme;
@@ -121,14 +119,14 @@ namespace AnPlayApp
         public MainForm()
         {
             Text = "AnPlay";
-            Width = 820;
-            Height = 560;
-            MinimumSize = new Size(820, 560);
+            ClientSize = new Size(820, 570);
+            MinimumSize = new Size(836, 609);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 9F);
             DoubleBuffered = true;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
             theme = Theme.Dark();
@@ -159,11 +157,11 @@ namespace AnPlayApp
             {
                 Left = 16,
                 Top = 14,
-                Width = 772,
-                Height = 96,
-                Radius = 12,
-                ColorA = Color.FromArgb(18, 29, 54),
-                ColorB = Color.FromArgb(27, 70, 85)
+                Width = 788,
+                Height = 104,
+                Radius = 14,
+                ColorA = theme.HeroA,
+                ColorB = theme.HeroB
             };
             Controls.Add(hero);
 
@@ -186,15 +184,15 @@ namespace AnPlayApp
             {
                 Left = 90,
                 Top = 55,
-                Width = 520,
+                Width = 500,
                 Height = 22,
-                Text = "Static offline macro recorder for Windows with instant hotkeys.",
+                Text = "Rekam aksi, replay halus, tetap ringan dan 100% offline.",
                 ForeColor = Color.FromArgb(214, 226, 238),
                 Font = new Font("Segoe UI", 9.5F)
             };
             hero.Controls.Add(subtitle);
 
-            statusPill = new Panel { Left = 620, Top = 25, Width = 126, Height = 42 };
+            statusPill = new Panel { Left = 638, Top = 31, Width = 126, Height = 42 };
             statusPill.Paint += PaintStatusPill;
             hero.Controls.Add(statusPill);
 
@@ -211,16 +209,16 @@ namespace AnPlayApp
             };
             statusPill.Controls.Add(lblMode);
 
-            cardControls = MakeCard(16, 126, 772, 122);
+            cardControls = MakeCard(16, 134, 788, 126);
             Controls.Add(cardControls);
 
-            btnRecord = MakeButton("F8 Record", 18, 18, 150, 46, theme.Good, OnRecordClick);
+            btnRecord = MakeButton("Rekam F8", 18, 18, 150, 46, theme.Good, OnRecordClick);
             cardControls.Controls.Add(btnRecord);
-            btnPlay = MakeButton("PrtSc Play", 180, 18, 150, 46, theme.Primary, OnPlayClick);
+            btnPlay = MakeButton("Play PrtSc", 180, 18, 150, 46, theme.Primary, OnPlayClick);
             cardControls.Controls.Add(btnPlay);
             btnStop = MakeButton("Stop", 342, 18, 110, 46, theme.Danger, OnStopClick);
             cardControls.Controls.Add(btnStop);
-            btnSave = MakeButton("Save", 464, 18, 106, 46, theme.Secondary, OnSaveClick);
+            btnSave = MakeButton("Simpan", 464, 18, 106, 46, theme.Secondary, OnSaveClick);
             cardControls.Controls.Add(btnSave);
             btnLoad = MakeButton("Load", 582, 18, 106, 46, theme.Secondary, OnLoadClick);
             cardControls.Controls.Add(btnLoad);
@@ -238,25 +236,25 @@ namespace AnPlayApp
 
             var hint = new Label
             {
-                Left = 390,
+                Left = 394,
                 Top = 76,
-                Width = 350,
+                Width = 362,
                 Height = 28,
-                Text = "F8 tidak ada delay. PrtSc langsung replay rekaman.",
+                Text = "F8 rekam/stop. PrtSc play/stop.",
                 TextAlign = ContentAlignment.MiddleRight
             };
             cardControls.Controls.Add(hint);
 
-            cardSettings = MakeCard(16, 264, 772, 128);
+            cardSettings = MakeCard(16, 276, 788, 152);
             Controls.Add(cardSettings);
 
-            AddLabel(cardSettings, "Speed", 22, 20, 62);
+            AddLabel(cardSettings, "Kecepatan", 22, 22, 82);
             cmbSpeed = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Left = 86,
-                Top = 16,
-                Width = 92,
+                Left = 112,
+                Top = 18,
+                Width = 98,
                 Height = 28
             };
             cmbSpeed.Items.AddRange(new object[] { "0.5", "1", "1.5", "2", "3", "5" });
@@ -264,15 +262,15 @@ namespace AnPlayApp
             cmbSpeed.SelectedIndexChanged += OnSettingChanged;
             cardSettings.Controls.Add(cmbSpeed);
 
-            chkLoopPlay = MakeCheckBox("Repeat loop", 210, 18, 130);
+            chkLoopPlay = MakeCheckBox("Loop replay", 242, 18, 130);
             chkLoopPlay.CheckedChanged += OnSettingChanged;
             cardSettings.Controls.Add(chkLoopPlay);
 
-            AddLabel(cardSettings, "Loop limit", 362, 20, 76);
+            AddLabel(cardSettings, "Batas loop", 408, 22, 82);
             numMaxLoops = new NumericUpDown
             {
-                Left = 444,
-                Top = 16,
+                Left = 500,
+                Top = 18,
                 Width = 82,
                 Minimum = 0,
                 Maximum = 9999,
@@ -281,38 +279,46 @@ namespace AnPlayApp
             numMaxLoops.ValueChanged += OnSettingChanged;
             cardSettings.Controls.Add(numMaxLoops);
 
-            AddLabel(cardSettings, "0 = no limit", 536, 20, 105);
+            AddLabel(cardSettings, "0 = tanpa batas", 594, 22, 128);
 
-            chkSmooth = MakeCheckBox("Smooth mouse", 22, 68, 150);
+            chkSmooth = MakeCheckBox("Gerak cursor halus", 22, 70, 180);
             chkSmooth.Checked = true;
             chkSmooth.CheckedChanged += OnSettingChanged;
             cardSettings.Controls.Add(chkSmooth);
 
-            chkDarkTheme = MakeCheckBox("Dark theme", 210, 68, 130);
-            chkDarkTheme.Checked = true;
-            chkDarkTheme.CheckedChanged += OnDarkThemeChanged;
-            cardSettings.Controls.Add(chkDarkTheme);
+            var themeBadge = new Label
+            {
+                Left = 242,
+                Top = 70,
+                Width = 154,
+                Height = 26,
+                Text = "Tema Dark Focus",
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold)
+            };
+            themeBadge.Paint += PaintMiniPill;
+            cardSettings.Controls.Add(themeBadge);
 
             var staticNote = new Label
             {
-                Left = 362,
-                Top = 66,
-                Width = 370,
+                Left = 430,
+                Top = 70,
+                Width = 312,
                 Height = 30,
-                Text = "Static mode: repeat is controlled only by macro + loop limit.",
+                Text = "Mode offline: tidak pakai AI, API key, atau internet.",
                 TextAlign = ContentAlignment.MiddleRight
             };
             cardSettings.Controls.Add(staticNote);
 
-            cardLog = MakeCard(16, 408, 772, 98);
+            cardLog = MakeCard(16, 444, 788, 86);
             Controls.Add(cardLog);
 
             txtLog = new TextBox
             {
                 Left = 14,
                 Top = 14,
-                Width = 744,
-                Height = 70,
+                Width = 760,
+                Height = 58,
                 Multiline = true,
                 ReadOnly = true,
                 BorderStyle = BorderStyle.None,
@@ -323,7 +329,7 @@ namespace AnPlayApp
             lblStatus = new Label
             {
                 Left = 18,
-                Top = 516,
+                Top = 538,
                 Width = 768,
                 Height = 24,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -357,6 +363,8 @@ namespace AnPlayApp
                 Cursor = Cursors.Hand
             };
             button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(color);
+            button.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(color);
             button.Click += handler;
             return button;
         }
@@ -413,9 +421,22 @@ namespace AnPlayApp
             }
         }
 
+        private void PaintMiniPill(object sender, PaintEventArgs e)
+        {
+            var label = (Label)sender;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, label.Width - 1, label.Height - 1);
+            using (var path = RoundedRect(rect, 13))
+            using (var brush = new LinearGradientBrush(rect, theme.Primary, theme.Good, 0F))
+            {
+                e.Graphics.FillPath(brush, path);
+            }
+            TextRenderer.DrawText(e.Graphics, label.Text, label.Font, rect, label.ForeColor, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
+
         private void ApplyTheme()
         {
-            theme = chkDarkTheme != null && !chkDarkTheme.Checked ? Theme.Light() : Theme.Dark();
+            theme = Theme.Dark();
             BackColor = theme.Background;
             if (hero != null)
             {
@@ -433,8 +454,12 @@ namespace AnPlayApp
             {
                 if (control is Label && control != lblMode)
                 {
-                    control.ForeColor = control.Parent == hero ? Color.FromArgb(214, 226, 238) : theme.Text;
+                    control.ForeColor = control.Parent == hero && control.Text == "AnPlay" ? Color.White : control.Parent == hero ? Color.FromArgb(214, 226, 238) : theme.Text;
                     control.BackColor = Color.Transparent;
+                }
+                if (control is Label && control.Text == "Tema Dark Focus")
+                {
+                    control.ForeColor = Color.White;
                 }
                 else if (control is CheckBox)
                 {
@@ -513,8 +538,12 @@ namespace AnPlayApp
 
         private void OnStopClick(object sender, EventArgs e)
         {
-            if (isRecording) StopRecording();
-            StopActiveWork();
+            if (isRecording)
+            {
+                StopRecording();
+                return;
+            }
+            if (isPlaying) StopActiveWork();
         }
 
         private void OnSaveClick(object sender, EventArgs e)
@@ -524,8 +553,16 @@ namespace AnPlayApp
                 dialog.Filter = "AnPlay macro (*.json)|*.json|All files (*.*)|*.*";
                 dialog.FileName = "macro.json";
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
-                File.WriteAllText(dialog.FileName, json.Serialize(macro), Encoding.UTF8);
-                RefreshState("Saved macro: " + dialog.FileName);
+                try
+                {
+                    File.WriteAllText(dialog.FileName, json.Serialize(macro), Encoding.UTF8);
+                    RefreshState("Macro tersimpan: " + dialog.FileName);
+                }
+                catch (Exception ex)
+                {
+                    RefreshState("Save gagal: " + ex.Message);
+                    AppendLogSafe(ex.ToString());
+                }
             }
         }
 
@@ -535,10 +572,18 @@ namespace AnPlayApp
             {
                 dialog.Filter = "AnPlay macro (*.json)|*.json|All files (*.*)|*.*";
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
-                MacroDocument loaded = json.Deserialize<MacroDocument>(File.ReadAllText(dialog.FileName, Encoding.UTF8));
-                if (loaded == null || loaded.Events == null) throw new InvalidDataException("Invalid macro file.");
-                macro = loaded;
-                RefreshState("Loaded macro: " + dialog.FileName);
+                try
+                {
+                    MacroDocument loaded = json.Deserialize<MacroDocument>(File.ReadAllText(dialog.FileName, Encoding.UTF8));
+                    if (loaded == null || loaded.Events == null) throw new InvalidDataException("Invalid macro file.");
+                    macro = loaded;
+                    RefreshState("Macro dimuat: " + dialog.FileName);
+                }
+                catch (Exception ex)
+                {
+                    RefreshState("Load gagal: " + ex.Message);
+                    AppendLogSafe(ex.ToString());
+                }
             }
         }
 
@@ -614,7 +659,8 @@ namespace AnPlayApp
                 }
                 else
                 {
-                    SleepCancelable(delay);
+                    if (smooth && IsPointerEvent(ev)) SmoothMoveTo(ev.X, ev.Y, delay);
+                    else SleepCancelable(delay);
                     if (cancelRequested) break;
                     ExecuteEvent(ev);
                 }
@@ -656,17 +702,34 @@ namespace AnPlayApp
                 SetCursorPos(targetX, targetY);
                 return;
             }
-            int duration = Math.Max(12, Math.Min(durationMs, 500));
-            int steps = Math.Max(2, Math.Min(40, duration / 8));
+            int duration = Math.Max(0, durationMs);
+            int moveDuration = Math.Max(8, Math.Min(duration, 900));
+            if (duration > moveDuration) SleepCancelable(duration - moveDuration);
+            if (cancelRequested) return;
+
+            int distance = Math.Max(Math.Abs(targetX - start.x), Math.Abs(targetY - start.y));
+            if (distance <= 1 || moveDuration <= 8)
+            {
+                SetCursorPos(targetX, targetY);
+                return;
+            }
+
+            int steps = Math.Max(2, Math.Min(120, Math.Max(moveDuration / 8, distance / 4)));
+            var timer = Stopwatch.StartNew();
             for (int i = 1; i <= steps && !cancelRequested; i++)
             {
-                double t = i / (double)steps;
-                double eased = 1 - Math.Pow(1 - t, 3);
+                int due = (int)Math.Round(i * (moveDuration / (double)steps));
+                int wait = due - (int)timer.ElapsedMilliseconds;
+                if (wait > 0) SleepCancelable(wait);
+                if (cancelRequested) break;
+
+                double t = moveDuration <= 0 ? 1 : Math.Min(1, timer.ElapsedMilliseconds / (double)moveDuration);
+                double eased = t * t * (3 - 2 * t);
                 int x = start.x + (int)Math.Round((targetX - start.x) * eased);
                 int y = start.y + (int)Math.Round((targetY - start.y) * eased);
                 SetCursorPos(x, y);
-                Thread.Sleep(Math.Max(1, duration / steps));
             }
+            if (!cancelRequested) SetCursorPos(targetX, targetY);
         }
 
         private List<MacroEvent> OptimizeRecordedEvents(List<MacroEvent> input)
@@ -682,7 +745,7 @@ namespace AnPlayApp
                 if (ev.Type == "Move")
                 {
                     Point point = new Point(ev.X, ev.Y);
-                    if (lastMove.HasValue && Distance(lastMove.Value, point) < 3 && ev.DelayMs < 80)
+                    if (lastMove.HasValue && Distance(lastMove.Value, point) < 2 && ev.DelayMs < 45)
                     {
                         carryDelay += ev.DelayMs;
                         continue;
@@ -788,7 +851,7 @@ namespace AnPlayApp
                 {
                     int now = (int)stopwatch.ElapsedMilliseconds;
                     Point point = new Point(x, y);
-                    if (now - lastMoveMs >= 28 && Distance(lastMovePoint, point) >= 4)
+                    if (now - lastMoveMs >= 18 && Distance(lastMovePoint, point) >= 2)
                     {
                         lastMoveMs = now;
                         lastMovePoint = point;
@@ -861,7 +924,6 @@ namespace AnPlayApp
                 chkLoopPlay.Checked = settings.LoopPlay;
                 numMaxLoops.Value = Clamp(settings.MaxLoops, (int)numMaxLoops.Minimum, (int)numMaxLoops.Maximum);
                 chkSmooth.Checked = hasSettings ? settings.SmoothMouse : true;
-                chkDarkTheme.Checked = hasSettings ? settings.DarkTheme : true;
             }
             catch (Exception ex)
             {
@@ -883,7 +945,6 @@ namespace AnPlayApp
                 settings.LoopPlay = chkLoopPlay.Checked;
                 settings.MaxLoops = (int)numMaxLoops.Value;
                 settings.SmoothMouse = chkSmooth.Checked;
-                settings.DarkTheme = chkDarkTheme.Checked;
 
                 string path = SettingsPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -903,12 +964,6 @@ namespace AnPlayApp
             RefreshState(lblStatus.Text);
         }
 
-        private void OnDarkThemeChanged(object sender, EventArgs e)
-        {
-            if (!loadingSettings) SaveSettings();
-            ApplyTheme();
-        }
-
         private static string SettingsPath()
         {
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnPlay", "settings.json");
@@ -923,6 +978,11 @@ namespace AnPlayApp
         private static int Distance(Point a, Point b)
         {
             return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+        }
+
+        private static bool IsPointerEvent(MacroEvent ev)
+        {
+            return ev.Type == "MouseDown" || ev.Type == "MouseUp" || ev.Type == "Wheel";
         }
 
         private static uint MouseFlag(string button, bool down)
@@ -963,8 +1023,8 @@ namespace AnPlayApp
             else if (isPlaying) lblMode.Text = chkLoopPlay.Checked ? "LOOP" : "PLAY";
             else lblMode.Text = "READY";
 
-            btnRecord.Text = isRecording ? "Stop F8" : "F8 Record";
-            btnPlay.Text = isPlaying ? "Stop PrtSc" : "PrtSc Play";
+            btnRecord.Text = isRecording ? "Stop F8" : "Rekam F8";
+            btnPlay.Text = isPlaying ? "Stop PrtSc" : "Play PrtSc";
             btnRecord.Enabled = !isPlaying || isRecording;
             btnPlay.Enabled = !isRecording && eventCount > 0;
             btnSave.Enabled = !isRecording && eventCount > 0;
@@ -1038,6 +1098,28 @@ namespace AnPlayApp
             return path;
         }
 
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (theme == null)
+            {
+                base.OnPaintBackground(e);
+                return;
+            }
+            Rectangle rect = ClientRectangle;
+            if (rect.Width <= 0 || rect.Height <= 0) return;
+            using (var brush = new LinearGradientBrush(rect, theme.Background, Color.FromArgb(13, 26, 32), 90F))
+            {
+                e.Graphics.FillRectangle(brush, rect);
+            }
+            using (var pen = new Pen(Color.FromArgb(22, 34, 211, 238), 1F))
+            {
+                for (int y = 96; y < rect.Height; y += 112)
+                {
+                    e.Graphics.DrawLine(pen, 0, y, rect.Width, y + 28);
+                }
+            }
+        }
+
         [STAThread]
         public static void Main()
         {
@@ -1085,8 +1167,10 @@ namespace AnPlayApp
                 Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
                 using (var path = RoundedRect(rect, Radius))
                 using (var brush = new LinearGradientBrush(rect, ColorA, ColorB, 0F))
+                using (var glow = new Pen(Color.FromArgb(90, 34, 211, 238)))
                 {
                     e.Graphics.FillPath(brush, path);
+                    e.Graphics.DrawPath(glow, path);
                 }
             }
         }
@@ -1097,16 +1181,17 @@ namespace AnPlayApp
             {
                 base.OnPaint(e);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var outer = new SolidBrush(Color.FromArgb(18, 211, 238)))
-                using (var inner = new SolidBrush(Color.FromArgb(15, 23, 42)))
+                using (var outer = new SolidBrush(Color.FromArgb(16, 185, 129)))
+                using (var inner = new SolidBrush(Color.FromArgb(6, 13, 24)))
+                using (var cyan = new SolidBrush(Color.FromArgb(34, 211, 238)))
                 using (var white = new SolidBrush(Color.White))
-                using (var amber = new SolidBrush(Color.FromArgb(245, 158, 11)))
+                using (var amber = new SolidBrush(Color.FromArgb(250, 204, 21)))
                 {
                     e.Graphics.FillEllipse(outer, 0, 0, 54, 54);
                     e.Graphics.FillEllipse(inner, 5, 5, 44, 44);
-                    e.Graphics.FillRectangle(white, 16, 16, 5, 22);
-                    e.Graphics.FillPolygon(white, new[] { new Point(24, 38), new Point(36, 16), new Point(41, 16), new Point(29, 38) });
-                    e.Graphics.FillPolygon(amber, new[] { new Point(34, 28), new Point(44, 34), new Point(34, 40) });
+                    e.Graphics.FillRectangle(cyan, 15, 15, 5, 24);
+                    e.Graphics.FillPolygon(white, new[] { new Point(23, 39), new Point(36, 15), new Point(42, 15), new Point(29, 39) });
+                    e.Graphics.FillPolygon(amber, new[] { new Point(34, 27), new Point(45, 34), new Point(34, 41) });
                 }
             }
         }
@@ -1131,38 +1216,20 @@ namespace AnPlayApp
                 return new Theme
                 {
                     Background = Color.FromArgb(8, 13, 24),
-                    Card = Color.FromArgb(16, 24, 39),
-                    Input = Color.FromArgb(11, 18, 32),
+                    Card = Color.FromArgb(14, 22, 35),
+                    Input = Color.FromArgb(7, 13, 24),
                     Text = Color.FromArgb(241, 245, 249),
-                    Muted = Color.FromArgb(148, 163, 184),
-                    Border = Color.FromArgb(47, 65, 87),
-                    Primary = Color.FromArgb(37, 99, 235),
-                    Secondary = Color.FromArgb(124, 58, 237),
-                    Good = Color.FromArgb(5, 150, 105),
-                    Danger = Color.FromArgb(220, 38, 38),
-                    HeroA = Color.FromArgb(15, 23, 42),
-                    HeroB = Color.FromArgb(21, 94, 117)
+                    Muted = Color.FromArgb(163, 178, 197),
+                    Border = Color.FromArgb(40, 58, 79),
+                    Primary = Color.FromArgb(14, 165, 233),
+                    Secondary = Color.FromArgb(99, 102, 241),
+                    Good = Color.FromArgb(16, 185, 129),
+                    Danger = Color.FromArgb(239, 68, 68),
+                    HeroA = Color.FromArgb(7, 13, 24),
+                    HeroB = Color.FromArgb(12, 96, 105)
                 };
             }
 
-            public static Theme Light()
-            {
-                return new Theme
-                {
-                    Background = Color.FromArgb(248, 250, 252),
-                    Card = Color.White,
-                    Input = Color.White,
-                    Text = Color.FromArgb(15, 23, 42),
-                    Muted = Color.FromArgb(71, 85, 105),
-                    Border = Color.FromArgb(226, 232, 240),
-                    Primary = Color.FromArgb(37, 99, 235),
-                    Secondary = Color.FromArgb(109, 40, 217),
-                    Good = Color.FromArgb(22, 163, 74),
-                    Danger = Color.FromArgb(220, 38, 38),
-                    HeroA = Color.FromArgb(37, 99, 235),
-                    HeroB = Color.FromArgb(20, 184, 166)
-                };
-            }
         }
 
         [DllImport("user32.dll", SetLastError = true)]
