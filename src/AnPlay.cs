@@ -109,7 +109,6 @@ namespace AnPlayApp
         private Label lblCount;
         private Label lblMode;
         private ComboBox cmbSpeed;
-        private NumericUpDown numMaxLoops;
         private CheckBox chkLoopPlay;
         private CheckBox chkSmooth;
         private TextBox txtLog;
@@ -176,7 +175,7 @@ namespace AnPlayApp
                 Height = 30,
                 Text = "AnPlay",
                 Font = new Font("Segoe UI Semibold", 20F, FontStyle.Bold),
-                ForeColor = Color.White
+                ForeColor = Color.FromArgb(219, 234, 254)
             };
             hero.Controls.Add(title);
 
@@ -205,18 +204,18 @@ namespace AnPlayApp
                 TextAlign = ContentAlignment.MiddleCenter,
                 Text = "READY",
                 Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
-                ForeColor = Color.White
+                ForeColor = Color.FromArgb(219, 234, 254)
             };
             statusPill.Controls.Add(lblMode);
 
             cardControls = MakeCard(16, 134, 788, 126);
             Controls.Add(cardControls);
 
-            btnRecord = MakeButton("Rekam F8", 18, 18, 150, 46, theme.Good, OnRecordClick);
+            btnRecord = MakeButton("Rekam F8", 18, 18, 150, 46, theme.Primary, OnRecordClick);
             cardControls.Controls.Add(btnRecord);
             btnPlay = MakeButton("Play PrtSc", 180, 18, 150, 46, theme.Primary, OnPlayClick);
             cardControls.Controls.Add(btnPlay);
-            btnStop = MakeButton("Stop", 342, 18, 110, 46, theme.Danger, OnStopClick);
+            btnStop = MakeButton("Stop", 342, 18, 110, 46, theme.Secondary, OnStopClick);
             cardControls.Controls.Add(btnStop);
             btnSave = MakeButton("Simpan", 464, 18, 106, 46, theme.Secondary, OnSaveClick);
             cardControls.Controls.Add(btnSave);
@@ -262,37 +261,24 @@ namespace AnPlayApp
             cmbSpeed.SelectedIndexChanged += OnSettingChanged;
             cardSettings.Controls.Add(cmbSpeed);
 
-            chkLoopPlay = MakeCheckBox("Loop replay", 242, 18, 130);
+            chkLoopPlay = MakeCheckBox("Loop replay unlimited", 242, 14, 190);
             chkLoopPlay.CheckedChanged += OnSettingChanged;
             cardSettings.Controls.Add(chkLoopPlay);
 
-            AddLabel(cardSettings, "Batas loop", 408, 22, 82);
-            numMaxLoops = new NumericUpDown
-            {
-                Left = 500,
-                Top = 18,
-                Width = 82,
-                Minimum = 0,
-                Maximum = 9999,
-                Value = 0
-            };
-            numMaxLoops.ValueChanged += OnSettingChanged;
-            cardSettings.Controls.Add(numMaxLoops);
+            AddLabel(cardSettings, "Centang = ulang terus", 470, 22, 180);
 
-            AddLabel(cardSettings, "0 = tanpa batas", 594, 22, 128);
-
-            chkSmooth = MakeCheckBox("Gerak cursor halus", 22, 70, 180);
+            chkSmooth = MakeCheckBox("Gerak cursor super halus", 22, 66, 230);
             chkSmooth.Checked = true;
             chkSmooth.CheckedChanged += OnSettingChanged;
             cardSettings.Controls.Add(chkSmooth);
 
             var themeBadge = new Label
             {
-                Left = 242,
+                Left = 282,
                 Top = 70,
                 Width = 154,
                 Height = 26,
-                Text = "Tema Dark Focus",
+                Text = "Blue Black Focus",
                 TextAlign = ContentAlignment.MiddleCenter,
                 Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold)
             };
@@ -305,7 +291,7 @@ namespace AnPlayApp
                 Top = 70,
                 Width = 312,
                 Height = 30,
-                Text = "Mode offline: tidak pakai AI, API key, atau internet.",
+                Text = "Offline penuh. Tidak pakai AI/API/internet.",
                 TextAlign = ContentAlignment.MiddleRight
             };
             cardSettings.Controls.Add(staticNote);
@@ -358,7 +344,7 @@ namespace AnPlayApp
                 Height = height,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = color,
-                ForeColor = Color.White,
+                ForeColor = Color.FromArgb(2, 8, 23),
                 Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
@@ -371,14 +357,17 @@ namespace AnPlayApp
 
         private CheckBox MakeCheckBox(string text, int left, int top, int width)
         {
-            return new CheckBox
+            return new AnimatedCheckBox
             {
                 Text = text,
                 Left = left,
                 Top = top,
                 Width = width,
-                Height = 26,
-                FlatStyle = FlatStyle.Flat
+                Height = 34,
+                Accent = theme.Primary,
+                Surface = theme.Input,
+                Border = theme.Border,
+                TextColor = theme.Text
             };
         }
 
@@ -454,12 +443,22 @@ namespace AnPlayApp
             {
                 if (control is Label && control != lblMode)
                 {
-                    control.ForeColor = control.Parent == hero && control.Text == "AnPlay" ? Color.White : control.Parent == hero ? Color.FromArgb(214, 226, 238) : theme.Text;
+                    control.ForeColor = control.Parent == hero && control.Text == "AnPlay" ? Color.FromArgb(219, 234, 254) : control.Parent == hero ? Color.FromArgb(191, 219, 254) : theme.Text;
                     control.BackColor = Color.Transparent;
                 }
-                if (control is Label && control.Text == "Tema Dark Focus")
+                if (control is Label && control.Text == "Blue Black Focus")
                 {
-                    control.ForeColor = Color.White;
+                    control.ForeColor = Color.FromArgb(219, 234, 254);
+                }
+                else if (control is AnimatedCheckBox)
+                {
+                    var check = (AnimatedCheckBox)control;
+                    check.Accent = theme.Primary;
+                    check.Surface = theme.Input;
+                    check.Border = theme.Border;
+                    check.TextColor = theme.Text;
+                    check.BackColor = Color.Transparent;
+                    check.Invalidate();
                 }
                 else if (control is CheckBox)
                 {
@@ -596,11 +595,11 @@ namespace AnPlayApp
             }
             SaveSettings();
             cancelRequested = false;
-            int loops = chkLoopPlay.Checked ? (int)numMaxLoops.Value : 1;
+            int loops = chkLoopPlay.Checked ? 0 : 1;
             double speed = GetSelectedSpeed();
             bool smooth = chkSmooth.Checked;
             isPlaying = true;
-            RefreshState(chkLoopPlay.Checked ? "Loop playback running. PrtSc stops." : "Playback running. PrtSc stops.");
+            RefreshState(chkLoopPlay.Checked ? "Loop unlimited running. PrtSc stops." : "Playback running. PrtSc stops.");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -703,18 +702,19 @@ namespace AnPlayApp
                 return;
             }
             int duration = Math.Max(0, durationMs);
-            int moveDuration = Math.Max(8, Math.Min(duration, 900));
+            int distance = Math.Max(Math.Abs(targetX - start.x), Math.Abs(targetY - start.y));
+            int renderDuration = Math.Min(320, Math.Max(24, distance / 3));
+            int moveDuration = Math.Max(10, Math.Min(Math.Max(duration, renderDuration), 900));
             if (duration > moveDuration) SleepCancelable(duration - moveDuration);
             if (cancelRequested) return;
 
-            int distance = Math.Max(Math.Abs(targetX - start.x), Math.Abs(targetY - start.y));
             if (distance <= 1 || moveDuration <= 8)
             {
                 SetCursorPos(targetX, targetY);
                 return;
             }
 
-            int steps = Math.Max(2, Math.Min(120, Math.Max(moveDuration / 8, distance / 4)));
+            int steps = Math.Max(3, Math.Min(180, Math.Max(moveDuration / 5, distance / 2)));
             var timer = Stopwatch.StartNew();
             for (int i = 1; i <= steps && !cancelRequested; i++)
             {
@@ -724,7 +724,7 @@ namespace AnPlayApp
                 if (cancelRequested) break;
 
                 double t = moveDuration <= 0 ? 1 : Math.Min(1, timer.ElapsedMilliseconds / (double)moveDuration);
-                double eased = t * t * (3 - 2 * t);
+                double eased = t * t * t * (t * (t * 6 - 15) + 10);
                 int x = start.x + (int)Math.Round((targetX - start.x) * eased);
                 int y = start.y + (int)Math.Round((targetY - start.y) * eased);
                 SetCursorPos(x, y);
@@ -922,7 +922,6 @@ namespace AnPlayApp
 
                 SetSpeedSelection(String.IsNullOrWhiteSpace(settings.Speed) ? "1" : settings.Speed);
                 chkLoopPlay.Checked = settings.LoopPlay;
-                numMaxLoops.Value = Clamp(settings.MaxLoops, (int)numMaxLoops.Minimum, (int)numMaxLoops.Maximum);
                 chkSmooth.Checked = hasSettings ? settings.SmoothMouse : true;
             }
             catch (Exception ex)
@@ -943,7 +942,7 @@ namespace AnPlayApp
                 var settings = new AppSettings();
                 settings.Speed = Convert.ToString(cmbSpeed.SelectedItem ?? "1");
                 settings.LoopPlay = chkLoopPlay.Checked;
-                settings.MaxLoops = (int)numMaxLoops.Value;
+                settings.MaxLoops = chkLoopPlay.Checked ? 0 : 1;
                 settings.SmoothMouse = chkSmooth.Checked;
 
                 string path = SettingsPath();
@@ -1014,7 +1013,7 @@ namespace AnPlayApp
         {
             int eventCount = macro.Events == null ? 0 : macro.Events.Count;
             string loop = chkLoopPlay != null && chkLoopPlay.Checked
-                ? ((int)numMaxLoops.Value == 0 ? "loop unlimited" : "loop " + (int)numMaxLoops.Value)
+                ? "loop unlimited"
                 : "single play";
             lblCount.Text = eventCount + " events | " + loop + " | F8 Rec | PrtSc Play";
             lblStatus.Text = status;
@@ -1107,7 +1106,7 @@ namespace AnPlayApp
             }
             Rectangle rect = ClientRectangle;
             if (rect.Width <= 0 || rect.Height <= 0) return;
-            using (var brush = new LinearGradientBrush(rect, theme.Background, Color.FromArgb(13, 26, 32), 90F))
+            using (var brush = new LinearGradientBrush(rect, theme.Background, Color.FromArgb(5, 22, 45), 90F))
             {
                 e.Graphics.FillRectangle(brush, rect);
             }
@@ -1154,6 +1153,122 @@ namespace AnPlayApp
             public IntPtr dwExtraInfo;
         }
 
+        private sealed class AnimatedCheckBox : CheckBox
+        {
+            private readonly System.Windows.Forms.Timer animationTimer;
+            private int animationFrame = 8;
+            private bool pressed;
+
+            public Color Accent { get; set; }
+            public Color Surface { get; set; }
+            public Color Border { get; set; }
+            public Color TextColor { get; set; }
+
+            public AnimatedCheckBox()
+            {
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+                Cursor = Cursors.Hand;
+                animationTimer = new System.Windows.Forms.Timer { Interval = 14 };
+                animationTimer.Tick += delegate
+                {
+                    animationFrame++;
+                    if (animationFrame >= 8)
+                    {
+                        animationFrame = 8;
+                        animationTimer.Stop();
+                    }
+                    Invalidate();
+                };
+            }
+
+            protected override void OnCheckedChanged(EventArgs e)
+            {
+                animationFrame = 0;
+                animationTimer.Stop();
+                animationTimer.Start();
+                Invalidate();
+                base.OnCheckedChanged(e);
+            }
+
+            protected override void OnMouseDown(MouseEventArgs e)
+            {
+                pressed = true;
+                Invalidate();
+                base.OnMouseDown(e);
+            }
+
+            protected override void OnMouseUp(MouseEventArgs e)
+            {
+                pressed = false;
+                Invalidate();
+                base.OnMouseUp(e);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle box = new Rectangle(2 + (pressed ? 1 : 0), (Height - 22) / 2 + (pressed ? 1 : 0), 22, 22);
+                Rectangle textRect = new Rectangle(34, 0, Width - 34, Height);
+                double raw = animationFrame / 8.0;
+                double progress = Checked ? raw : 1.0 - raw;
+                progress = Math.Max(0, Math.Min(1, progress));
+
+                using (var path = MainForm.RoundedRect(box, 6))
+                using (var fill = new SolidBrush(Checked || progress > 0 ? Color.FromArgb(2, 8, 23) : Surface))
+                using (var border = new Pen(Checked || progress > 0 ? Accent : Border, 2F))
+                {
+                    e.Graphics.FillPath(fill, path);
+                    e.Graphics.DrawPath(border, path);
+                }
+
+                if (Checked || progress > 0)
+                {
+                    int pulseAlpha = 70 - (int)(progress * 50);
+                    Rectangle pulse = Rectangle.Inflate(box, 2 + animationFrame, 2 + animationFrame);
+                    using (var pulsePath = MainForm.RoundedRect(pulse, 8 + animationFrame))
+                    using (var pulsePen = new Pen(Color.FromArgb(Math.Max(0, pulseAlpha), Accent), 1F))
+                    {
+                        e.Graphics.DrawPath(pulsePen, pulsePath);
+                    }
+                }
+
+                if (progress > 0.02)
+                {
+                    PointF a = new PointF(box.Left + 5, box.Top + 12);
+                    PointF b = new PointF(box.Left + 10, box.Top + 16);
+                    PointF c = new PointF(box.Left + 18, box.Top + 7);
+                    using (var pen = new Pen(Accent, 2.6F))
+                    {
+                        pen.StartCap = LineCap.Round;
+                        pen.EndCap = LineCap.Round;
+                        if (progress < 0.5)
+                        {
+                            e.Graphics.DrawLine(pen, a, Lerp(a, b, progress / 0.5));
+                        }
+                        else
+                        {
+                            e.Graphics.DrawLine(pen, a, b);
+                            e.Graphics.DrawLine(pen, b, Lerp(b, c, (progress - 0.5) / 0.5));
+                        }
+                    }
+                }
+
+                TextRenderer.DrawText(e.Graphics, Text, Font, textRect, TextColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing && animationTimer != null) animationTimer.Dispose();
+                base.Dispose(disposing);
+            }
+
+            private static PointF Lerp(PointF a, PointF b, double t)
+            {
+                return new PointF((float)(a.X + (b.X - a.X) * t), (float)(a.Y + (b.Y - a.Y) * t));
+            }
+        }
+
         private sealed class GradientPanel : Panel
         {
             public Color ColorA { get; set; }
@@ -1177,22 +1292,67 @@ namespace AnPlayApp
 
         private sealed class LogoPanel : Panel
         {
+            private readonly System.Windows.Forms.Timer pulseTimer;
+            private int pulseFrame;
+
+            public LogoPanel()
+            {
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+                BackColor = Color.Transparent;
+                Cursor = Cursors.Hand;
+                pulseTimer = new System.Windows.Forms.Timer { Interval = 16 };
+                pulseTimer.Tick += delegate
+                {
+                    pulseFrame++;
+                    if (pulseFrame >= 12)
+                    {
+                        pulseFrame = 0;
+                        pulseTimer.Stop();
+                    }
+                    Invalidate();
+                };
+            }
+
+            protected override void OnMouseDown(MouseEventArgs e)
+            {
+                pulseFrame = 1;
+                pulseTimer.Stop();
+                pulseTimer.Start();
+                Invalidate();
+                base.OnMouseDown(e);
+            }
+
             protected override void OnPaint(PaintEventArgs e)
             {
                 base.OnPaint(e);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var outer = new SolidBrush(Color.FromArgb(16, 185, 129)))
-                using (var inner = new SolidBrush(Color.FromArgb(6, 13, 24)))
-                using (var cyan = new SolidBrush(Color.FromArgb(34, 211, 238)))
-                using (var white = new SolidBrush(Color.White))
-                using (var amber = new SolidBrush(Color.FromArgb(250, 204, 21)))
+                using (var outer = new SolidBrush(Color.FromArgb(14, 165, 233)))
+                using (var inner = new SolidBrush(Color.FromArgb(2, 8, 23)))
+                using (var blue = new SolidBrush(Color.FromArgb(96, 165, 250)))
+                using (var deepBlue = new SolidBrush(Color.FromArgb(30, 64, 175)))
                 {
                     e.Graphics.FillEllipse(outer, 0, 0, 54, 54);
                     e.Graphics.FillEllipse(inner, 5, 5, 44, 44);
-                    e.Graphics.FillRectangle(cyan, 15, 15, 5, 24);
-                    e.Graphics.FillPolygon(white, new[] { new Point(23, 39), new Point(36, 15), new Point(42, 15), new Point(29, 39) });
-                    e.Graphics.FillPolygon(amber, new[] { new Point(34, 27), new Point(45, 34), new Point(34, 41) });
+                    e.Graphics.FillRectangle(blue, 15, 15, 5, 24);
+                    e.Graphics.FillPolygon(blue, new[] { new Point(23, 39), new Point(36, 15), new Point(42, 15), new Point(29, 39) });
+                    e.Graphics.FillPolygon(deepBlue, new[] { new Point(34, 27), new Point(45, 34), new Point(34, 41) });
                 }
+
+                if (pulseFrame > 0)
+                {
+                    int alpha = Math.Max(0, 150 - pulseFrame * 11);
+                    Rectangle pulse = Rectangle.Inflate(new Rectangle(1, 1, 52, 52), pulseFrame, pulseFrame);
+                    using (var pen = new Pen(Color.FromArgb(alpha, 96, 165, 250), 2F))
+                    {
+                        e.Graphics.DrawEllipse(pen, pulse);
+                    }
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing && pulseTimer != null) pulseTimer.Dispose();
+                base.Dispose(disposing);
             }
         }
 
@@ -1216,17 +1376,17 @@ namespace AnPlayApp
                 return new Theme
                 {
                     Background = Color.FromArgb(8, 13, 24),
-                    Card = Color.FromArgb(14, 22, 35),
+                    Card = Color.FromArgb(5, 12, 24),
                     Input = Color.FromArgb(7, 13, 24),
-                    Text = Color.FromArgb(241, 245, 249),
-                    Muted = Color.FromArgb(163, 178, 197),
-                    Border = Color.FromArgb(40, 58, 79),
+                    Text = Color.FromArgb(219, 234, 254),
+                    Muted = Color.FromArgb(147, 197, 253),
+                    Border = Color.FromArgb(30, 58, 138),
                     Primary = Color.FromArgb(14, 165, 233),
-                    Secondary = Color.FromArgb(99, 102, 241),
-                    Good = Color.FromArgb(16, 185, 129),
-                    Danger = Color.FromArgb(239, 68, 68),
-                    HeroA = Color.FromArgb(7, 13, 24),
-                    HeroB = Color.FromArgb(12, 96, 105)
+                    Secondary = Color.FromArgb(37, 99, 235),
+                    Good = Color.FromArgb(96, 165, 250),
+                    Danger = Color.FromArgb(30, 64, 175),
+                    HeroA = Color.FromArgb(2, 8, 23),
+                    HeroB = Color.FromArgb(7, 37, 82)
                 };
             }
 
