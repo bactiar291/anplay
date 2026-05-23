@@ -1,23 +1,15 @@
 # AnPlay
 
-AnPlay is a small Windows macro recorder/player with optional Groq Vision auto-stop.
+AnPlay adalah macro recorder/player Windows statis. Tidak ada AI, tidak ada API key, dan tidak ada request internet.
 
 ## Quick Use
 
-- `F8`: start recording. Press `F8` again to stop recording.
-- `PrtSc`: play the recorded macro. Press `PrtSc` again to stop playback or AI loop.
-- `Rec F8`: same as pressing `F8`.
-- `Play PrtSc`: same as pressing `PrtSc`.
-- `Save` / `Load`: save or load macro JSON.
-- `Start AI`: repeat the macro and use Groq Vision to stop when the screen condition is met.
-
-## AI Stop Condition Examples
-
-```text
-berhenti kalau xxxxx sukses atau berhenti kalau xxxxx gagal tinggal prompt saja 
-```
-
-AnPlay uses a conservative verifier. It stops on clear success/OTP states and also stops on terminal failure states such as `Banned`, `Blocked`, `Suspended`, or `Too many attempts` to avoid continuing harmful loops.
+- `F8`: mulai rekam langsung. Tekan `F8` lagi untuk stop rekam.
+- `PrtSc`: play rekaman. Tekan `PrtSc` lagi untuk stop playback.
+- `Repeat loop`: ulangi replay.
+- `Loop limit = 0`: ulang terus sampai `PrtSc` atau `Stop` ditekan.
+- `Save` / `Load`: simpan atau load macro JSON.
+- `Dark theme`: tampilan gelap bawaan, bisa dimatikan dari UI.
 
 ## Build
 
@@ -31,14 +23,15 @@ Output:
 
 ```text
 dist\AnPlay.exe
+release\AnPlay-release.zip
 ```
 
 ## Settings
 
-Settings and the Groq API key are stored locally:
+Settings disimpan lokal:
 
 ```text
 %LOCALAPPDATA%\AnPlay\settings.json
 ```
 
-The API key is protected with Windows DPAPI for the current user. It is not embedded into the EXE.
+Macro hanya tersimpan kalau user menekan `Save`.

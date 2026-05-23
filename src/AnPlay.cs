@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
-using System.Net;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
@@ -35,7 +32,7 @@ namespace AnPlayApp
 
         public MacroDocument()
         {
-            Version = 1;
+            Version = 2;
             Name = "AnPlay Macro";
             CreatedUtc = DateTime.UtcNow.ToString("o");
             Events = new List<MacroEvent>();
@@ -44,25 +41,11 @@ namespace AnPlayApp
 
     public class AppSettings
     {
-        public string ApiKeyProtected { get; set; }
-        public string Condition { get; set; }
-        public string Models { get; set; }
         public string Speed { get; set; }
         public bool LoopPlay { get; set; }
         public int MaxLoops { get; set; }
         public bool SmoothMouse { get; set; }
-        public int CheckDelaySeconds { get; set; }
-        public bool ConfirmStopTwice { get; set; }
-    }
-
-    public class GroqDecision
-    {
-        public bool Stop;
-        public double Confidence;
-        public string StopType;
-        public string VisibleText;
-        public string Evidence;
-        public string Reason;
+        public bool DarkTheme { get; set; }
     }
 
     public class MainForm : Form
@@ -95,16 +78,6 @@ namespace AnPlayApp
         private const uint MOUSEEVENTF_HWHEEL = 0x01000;
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
-        private const string DefaultCondition =
-            "berhenti kalau sudah tidak error Unable to send a verification code; " +
-            "kalau nomor berhasil masuk dan layar hanya menunggu OTP/kode akses maka berhenti; " +
-            "kalau muncul Banned/Blocked/Suspended juga berhenti supaya loop tidak lanjut";
-
-        private const string DefaultVisionModels =
-            "meta-llama/llama-4-maverick-17b-128e-instruct, " +
-            "meta-llama/llama-4-scout-17b-16e-instruct, " +
-            "qwen/qwen3-vl-32b-instruct";
-
         private readonly object sync = new object();
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
         private readonly Stopwatch stopwatch = new Stopwatch();
@@ -115,7 +88,6 @@ namespace AnPlayApp
         private LowLevelMouseProc mouseProc;
         private bool isRecording;
         private bool isPlaying;
-        private bool isAiLoop;
         private bool cancelRequested;
         private bool loadingSettings;
         private int lastEventMs;
@@ -124,45 +96,49 @@ namespace AnPlayApp
         private Point lastMovePoint = Point.Empty;
         private System.Windows.Forms.Timer settingsTimer;
 
-        private Panel pnlLogo;
-        private Panel pnlState;
+        private GradientPanel hero;
+        private Panel cardControls;
+        private Panel cardSettings;
+        private Panel cardLog;
+        private Panel statusPill;
         private Button btnRecord;
         private Button btnPlay;
         private Button btnStop;
         private Button btnSave;
         private Button btnLoad;
-        private Button btnAiLoop;
-        private Button btnClearKey;
         private Label lblStatus;
         private Label lblCount;
-        private TextBox txtCondition;
-        private TextBox txtApiKey;
-        private TextBox txtModels;
+        private Label lblMode;
         private ComboBox cmbSpeed;
         private NumericUpDown numMaxLoops;
-        private NumericUpDown numDelay;
         private CheckBox chkLoopPlay;
         private CheckBox chkSmooth;
-        private CheckBox chkConfirmStopTwice;
+        private CheckBox chkDarkTheme;
         private TextBox txtLog;
+
+        private Theme theme;
 
         public MainForm()
         {
             Text = "AnPlay";
-            Width = 760;
+            Width = 820;
             Height = 560;
+            MinimumSize = new Size(820, 560);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 9F);
+            DoubleBuffered = true;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
+            theme = Theme.Dark();
             keyboardProc = KeyboardHookCallback;
             mouseProc = MouseHookCallback;
             BuildUi();
             LoadSettings();
+            ApplyTheme();
             InstallKeyboardHook();
-            RefreshState("Ready. F8 = Record/Stop Record. PrtSc = Play/Stop Playback.");
+            RefreshState("Ready. F8 langsung rekam/stop. PrtSc play/stop.");
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -176,171 +152,330 @@ namespace AnPlayApp
 
         private void BuildUi()
         {
-            var header = new Panel { Left = 12, Top = 10, Width = 720, Height = 55 };
-            Controls.Add(header);
+            BackColor = theme.Background;
+            Controls.Clear();
 
-            pnlLogo = new Panel { Left = 0, Top = 3, Width = 48, Height = 48 };
-            pnlLogo.Paint += PaintLogo;
-            header.Controls.Add(pnlLogo);
+            hero = new GradientPanel
+            {
+                Left = 16,
+                Top = 14,
+                Width = 772,
+                Height = 96,
+                Radius = 12,
+                ColorA = Color.FromArgb(18, 29, 54),
+                ColorB = Color.FromArgb(27, 70, 85)
+            };
+            Controls.Add(hero);
+
+            var badge = new LogoPanel { Left = 18, Top = 20, Width = 54, Height = 54 };
+            hero.Controls.Add(badge);
 
             var title = new Label
             {
-                Left = 58,
-                Top = 4,
-                Width = 230,
-                Height = 24,
-                Font = new Font("Segoe UI Semibold", 13F, FontStyle.Bold),
-                Text = "AnPlay"
+                Left = 86,
+                Top = 18,
+                Width = 360,
+                Height = 30,
+                Text = "AnPlay",
+                Font = new Font("Segoe UI Semibold", 20F, FontStyle.Bold),
+                ForeColor = Color.White
             };
-            header.Controls.Add(title);
+            hero.Controls.Add(title);
 
             var subtitle = new Label
             {
-                Left = 60,
-                Top = 30,
-                Width = 500,
-                Height = 20,
-                Text = "F8 = Record/Stop Record | PrtSc = Play/Stop Playback"
+                Left = 90,
+                Top = 55,
+                Width = 520,
+                Height = 22,
+                Text = "Static offline macro recorder for Windows with instant hotkeys.",
+                ForeColor = Color.FromArgb(214, 226, 238),
+                Font = new Font("Segoe UI", 9.5F)
             };
-            header.Controls.Add(subtitle);
+            hero.Controls.Add(subtitle);
 
-            pnlState = new Panel { Left = 640, Top = 11, Width = 58, Height = 28 };
-            header.Controls.Add(pnlState);
+            statusPill = new Panel { Left = 620, Top = 25, Width = 126, Height = 42 };
+            statusPill.Paint += PaintStatusPill;
+            hero.Controls.Add(statusPill);
 
-            var top = new Panel { Left = 12, Top = 70, Width = 720, Height = 44 };
-            Controls.Add(top);
+            lblMode = new Label
+            {
+                Left = 0,
+                Top = 10,
+                Width = 126,
+                Height = 22,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Text = "READY",
+                Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+                ForeColor = Color.White
+            };
+            statusPill.Controls.Add(lblMode);
 
-            btnRecord = MakeButton("Rec F8", 0, 0, 82, 36, OnRecordClick);
-            top.Controls.Add(btnRecord);
-            btnPlay = MakeButton("Play PrtSc", 92, 0, 92, 36, OnPlayClick);
-            top.Controls.Add(btnPlay);
-            btnStop = MakeButton("Stop", 194, 0, 82, 36, OnStopClick);
-            top.Controls.Add(btnStop);
-            btnSave = MakeButton("Save", 286, 0, 82, 36, OnSaveClick);
-            top.Controls.Add(btnSave);
-            btnLoad = MakeButton("Load", 378, 0, 82, 36, OnLoadClick);
-            top.Controls.Add(btnLoad);
+            cardControls = MakeCard(16, 126, 772, 122);
+            Controls.Add(cardControls);
 
-            lblCount = new Label { Left = 475, Top = 8, Width = 235, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
-            top.Controls.Add(lblCount);
+            btnRecord = MakeButton("F8 Record", 18, 18, 150, 46, theme.Good, OnRecordClick);
+            cardControls.Controls.Add(btnRecord);
+            btnPlay = MakeButton("PrtSc Play", 180, 18, 150, 46, theme.Primary, OnPlayClick);
+            cardControls.Controls.Add(btnPlay);
+            btnStop = MakeButton("Stop", 342, 18, 110, 46, theme.Danger, OnStopClick);
+            cardControls.Controls.Add(btnStop);
+            btnSave = MakeButton("Save", 464, 18, 106, 46, theme.Secondary, OnSaveClick);
+            cardControls.Controls.Add(btnSave);
+            btnLoad = MakeButton("Load", 582, 18, 106, 46, theme.Secondary, OnLoadClick);
+            cardControls.Controls.Add(btnLoad);
 
-            var playback = new GroupBox { Text = "1. Playback Settings", Left = 12, Top = 120, Width = 720, Height = 72 };
-            Controls.Add(playback);
+            lblCount = new Label
+            {
+                Left = 20,
+                Top = 76,
+                Width = 360,
+                Height = 28,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold)
+            };
+            cardControls.Controls.Add(lblCount);
 
-            playback.Controls.Add(new Label { Text = "Speed", Left = 12, Top = 30, Width = 52 });
-            cmbSpeed = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 66, Top = 26, Width = 76 };
+            var hint = new Label
+            {
+                Left = 390,
+                Top = 76,
+                Width = 350,
+                Height = 28,
+                Text = "F8 tidak ada delay. PrtSc langsung replay rekaman.",
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            cardControls.Controls.Add(hint);
+
+            cardSettings = MakeCard(16, 264, 772, 128);
+            Controls.Add(cardSettings);
+
+            AddLabel(cardSettings, "Speed", 22, 20, 62);
+            cmbSpeed = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Left = 86,
+                Top = 16,
+                Width = 92,
+                Height = 28
+            };
             cmbSpeed.Items.AddRange(new object[] { "0.5", "1", "1.5", "2", "3", "5" });
             cmbSpeed.SelectedItem = "1";
             cmbSpeed.SelectedIndexChanged += OnSettingChanged;
-            playback.Controls.Add(cmbSpeed);
+            cardSettings.Controls.Add(cmbSpeed);
 
-            chkLoopPlay = new CheckBox { Text = "Repeat", Left = 160, Top = 28, Width = 78 };
+            chkLoopPlay = MakeCheckBox("Repeat loop", 210, 18, 130);
             chkLoopPlay.CheckedChanged += OnSettingChanged;
-            playback.Controls.Add(chkLoopPlay);
+            cardSettings.Controls.Add(chkLoopPlay);
 
-            playback.Controls.Add(new Label { Text = "Loop limit", Left = 252, Top = 30, Width = 72 });
-            numMaxLoops = new NumericUpDown { Left = 326, Top = 26, Width = 68, Minimum = 0, Maximum = 9999, Value = 0 };
-            numMaxLoops.ValueChanged += OnSettingChanged;
-            playback.Controls.Add(numMaxLoops);
-
-            playback.Controls.Add(new Label { Text = "0 = no limit", Left = 400, Top = 30, Width = 84 });
-            chkSmooth = new CheckBox { Text = "Smooth mouse", Left = 510, Top = 28, Width = 145, Checked = true };
-            chkSmooth.CheckedChanged += OnSettingChanged;
-            playback.Controls.Add(chkSmooth);
-
-            var ai = new GroupBox { Text = "2. AI Auto-Stop (optional)", Left = 12, Top = 200, Width = 720, Height = 230 };
-            Controls.Add(ai);
-
-            ai.Controls.Add(new Label { Text = "Stop when", Left = 12, Top = 28, Width = 105 });
-            txtCondition = new TextBox { Left = 122, Top = 24, Width = 580, Height = 46, Multiline = true, Text = DefaultCondition };
-            txtCondition.TextChanged += OnSettingChanged;
-            ai.Controls.Add(txtCondition);
-
-            ai.Controls.Add(new Label { Text = "Groq key", Left = 12, Top = 82, Width = 105 });
-            txtApiKey = new TextBox { Left = 122, Top = 78, Width = 380, PasswordChar = '*' };
-            txtApiKey.TextChanged += OnSettingChanged;
-            ai.Controls.Add(txtApiKey);
-            btnClearKey = MakeButton("Clear Key", 514, 76, 86, 28, OnClearKeyClick);
-            ai.Controls.Add(btnClearKey);
-
-            ai.Controls.Add(new Label { Text = "Check after", Left = 12, Top = 118, Width = 105 });
-            numDelay = new NumericUpDown { Left = 122, Top = 114, Width = 66, Minimum = 1, Maximum = 60, Value = 2 };
-            numDelay.ValueChanged += OnSettingChanged;
-            ai.Controls.Add(numDelay);
-            ai.Controls.Add(new Label { Text = "seconds", Left = 194, Top = 118, Width = 62 });
-
-            chkConfirmStopTwice = new CheckBox { Text = "Confirm twice", Left = 270, Top = 116, Width = 120, Checked = true };
-            chkConfirmStopTwice.CheckedChanged += OnSettingChanged;
-            ai.Controls.Add(chkConfirmStopTwice);
-            btnAiLoop = MakeButton("Start AI", 514, 112, 86, 30, OnAiLoopClick);
-            ai.Controls.Add(btnAiLoop);
-
-            ai.Controls.Add(new Label { Text = "Model list", Left = 12, Top = 156, Width = 105 });
-            txtModels = new TextBox
+            AddLabel(cardSettings, "Loop limit", 362, 20, 76);
+            numMaxLoops = new NumericUpDown
             {
-                Left = 122,
-                Top = 152,
-                Width = 580,
-                Height = 52,
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Text = DefaultVisionModels
+                Left = 444,
+                Top = 16,
+                Width = 82,
+                Minimum = 0,
+                Maximum = 9999,
+                Value = 0
             };
-            txtModels.TextChanged += OnSettingChanged;
-            ai.Controls.Add(txtModels);
+            numMaxLoops.ValueChanged += OnSettingChanged;
+            cardSettings.Controls.Add(numMaxLoops);
 
-            txtLog = new TextBox { Left = 12, Top = 438, Width = 720, Height = 66, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical };
-            Controls.Add(txtLog);
-            lblStatus = new Label { Left = 12, Top = 510, Width = 720, Height = 22, TextAlign = ContentAlignment.MiddleLeft };
+            AddLabel(cardSettings, "0 = no limit", 536, 20, 105);
+
+            chkSmooth = MakeCheckBox("Smooth mouse", 22, 68, 150);
+            chkSmooth.Checked = true;
+            chkSmooth.CheckedChanged += OnSettingChanged;
+            cardSettings.Controls.Add(chkSmooth);
+
+            chkDarkTheme = MakeCheckBox("Dark theme", 210, 68, 130);
+            chkDarkTheme.Checked = true;
+            chkDarkTheme.CheckedChanged += OnDarkThemeChanged;
+            cardSettings.Controls.Add(chkDarkTheme);
+
+            var staticNote = new Label
+            {
+                Left = 362,
+                Top = 66,
+                Width = 370,
+                Height = 30,
+                Text = "Static mode: repeat is controlled only by macro + loop limit.",
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            cardSettings.Controls.Add(staticNote);
+
+            cardLog = MakeCard(16, 408, 772, 98);
+            Controls.Add(cardLog);
+
+            txtLog = new TextBox
+            {
+                Left = 14,
+                Top = 14,
+                Width = 744,
+                Height = 70,
+                Multiline = true,
+                ReadOnly = true,
+                BorderStyle = BorderStyle.None,
+                ScrollBars = ScrollBars.Vertical
+            };
+            cardLog.Controls.Add(txtLog);
+
+            lblStatus = new Label
+            {
+                Left = 18,
+                Top = 516,
+                Width = 768,
+                Height = 24,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
             Controls.Add(lblStatus);
 
-            settingsTimer = new System.Windows.Forms.Timer { Interval = 900 };
+            settingsTimer = new System.Windows.Forms.Timer { Interval = 500 };
             settingsTimer.Tick += delegate { settingsTimer.Stop(); SaveSettings(); };
         }
 
-        private Button MakeButton(string text, int left, int top, int width, int height, EventHandler handler)
+        private Panel MakeCard(int left, int top, int width, int height)
         {
-            var button = new Button { Text = text, Left = left, Top = top, Width = width, Height = height };
+            var panel = new Panel { Left = left, Top = top, Width = width, Height = height };
+            panel.Paint += PaintCard;
+            return panel;
+        }
+
+        private Button MakeButton(string text, int left, int top, int width, int height, Color color, EventHandler handler)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Left = left,
+                Top = top,
+                Width = width,
+                Height = height,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = color,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            button.FlatAppearance.BorderSize = 0;
             button.Click += handler;
             return button;
         }
 
-        private void PaintLogo(object sender, PaintEventArgs e)
+        private CheckBox MakeCheckBox(string text, int left, int top, int width)
+        {
+            return new CheckBox
+            {
+                Text = text,
+                Left = left,
+                Top = top,
+                Width = width,
+                Height = 26,
+                FlatStyle = FlatStyle.Flat
+            };
+        }
+
+        private void AddLabel(Control parent, string text, int left, int top, int width)
+        {
+            parent.Controls.Add(new Label
+            {
+                Text = text,
+                Left = left,
+                Top = top,
+                Width = width,
+                Height = 24,
+                TextAlign = ContentAlignment.MiddleLeft
+            });
+        }
+
+        private void PaintCard(object sender, PaintEventArgs e)
+        {
+            var panel = (Panel)sender;
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+            using (var path = RoundedRect(rect, 10))
+            using (var brush = new SolidBrush(theme.Card))
+            using (var pen = new Pen(theme.Border))
+            {
+                e.Graphics.FillPath(brush, path);
+                e.Graphics.DrawPath(pen, path);
+            }
+        }
+
+        private void PaintStatusPill(object sender, PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var bg = new LinearGradientBrush(new Rectangle(0, 0, 48, 48), Color.FromArgb(9, 66, 88), Color.FromArgb(30, 142, 116), 45F))
-            using (var white = new SolidBrush(Color.White))
-            using (var red = new SolidBrush(Color.FromArgb(231, 59, 70)))
-            using (var yellow = new SolidBrush(Color.FromArgb(245, 183, 58)))
+            Rectangle rect = new Rectangle(0, 0, statusPill.Width - 1, statusPill.Height - 1);
+            Color fill = isRecording ? theme.Good : isPlaying ? theme.Primary : theme.Danger;
+            using (var path = RoundedRect(rect, 21))
+            using (var brush = new SolidBrush(fill))
             {
-                e.Graphics.FillEllipse(bg, 2, 2, 44, 44);
-                e.Graphics.FillRectangle(white, 12, 14, 5, 22);
-                e.Graphics.FillPolygon(white, new[] { new Point(18, 36), new Point(30, 14), new Point(35, 14), new Point(23, 36) });
-                e.Graphics.FillEllipse(red, 30, 8, 10, 10);
-                e.Graphics.FillPolygon(yellow, new[] { new Point(29, 28), new Point(39, 34), new Point(29, 40) });
+                e.Graphics.FillPath(brush, path);
             }
+        }
+
+        private void ApplyTheme()
+        {
+            theme = chkDarkTheme != null && !chkDarkTheme.Checked ? Theme.Light() : Theme.Dark();
+            BackColor = theme.Background;
+            if (hero != null)
+            {
+                hero.ColorA = theme.HeroA;
+                hero.ColorB = theme.HeroB;
+                hero.Invalidate();
+            }
+            ApplyControlTheme(this);
+            Refresh();
+        }
+
+        private void ApplyControlTheme(Control root)
+        {
+            foreach (Control control in root.Controls)
+            {
+                if (control is Label && control != lblMode)
+                {
+                    control.ForeColor = control.Parent == hero ? Color.FromArgb(214, 226, 238) : theme.Text;
+                    control.BackColor = Color.Transparent;
+                }
+                else if (control is CheckBox)
+                {
+                    control.ForeColor = theme.Text;
+                    control.BackColor = Color.Transparent;
+                }
+                else if (control is ComboBox || control is NumericUpDown)
+                {
+                    control.ForeColor = theme.Text;
+                    control.BackColor = theme.Input;
+                }
+                else if (control is TextBox)
+                {
+                    control.ForeColor = theme.Text;
+                    control.BackColor = theme.Input;
+                }
+                ApplyControlTheme(control);
+            }
+            if (lblStatus != null) lblStatus.ForeColor = theme.Muted;
+            if (lblCount != null) lblCount.ForeColor = theme.Text;
+            if (txtLog != null)
+            {
+                txtLog.BackColor = theme.Input;
+                txtLog.ForeColor = theme.Muted;
+            }
+            if (cardControls != null) cardControls.Invalidate();
+            if (cardSettings != null) cardSettings.Invalidate();
+            if (cardLog != null) cardLog.Invalidate();
         }
 
         private void OnRecordClick(object sender, EventArgs e)
         {
             if (isRecording) StopRecording();
-            else if (!isPlaying && !isAiLoop) BeginRecordingWithDelay();
-        }
-
-        private void BeginRecordingWithDelay()
-        {
-            ThreadPool.QueueUserWorkItem(delegate
-            {
-                SetStatusSafe("Recording starts in 3 seconds. Press F8 again to stop recording.");
-                Thread.Sleep(3000);
-                BeginInvoke((MethodInvoker)StartRecording);
-            });
+            else if (!isPlaying) StartRecording();
         }
 
         private void StartRecording()
         {
             lock (sync)
             {
+                if (isRecording) return;
                 macro = new MacroDocument();
                 lastEventMs = 0;
                 lastMoveMs = 0;
@@ -351,7 +486,8 @@ namespace AnPlayApp
                 isRecording = true;
                 InstallMouseHook();
             }
-            RefreshState("Recording... press F8 to stop recording.");
+            AppendLogSafe("Recording started instantly.");
+            RefreshState("Recording. Press F8 again to stop.");
         }
 
         private void StopRecording()
@@ -406,43 +542,20 @@ namespace AnPlayApp
             }
         }
 
-        private void OnAiLoopClick(object sender, EventArgs e)
-        {
-            if (isRecording) return;
-            if (isAiLoop || isPlaying)
-            {
-                StopActiveWork();
-                return;
-            }
-            if (macro.Events.Count == 0)
-            {
-                MessageBox.Show(this, "Record or load a macro first.", "No macro", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            SaveSettings();
-            cancelRequested = false;
-            isAiLoop = true;
-            RefreshState("AI Auto-Stop running. Press PrtSc to stop it.");
-            ThreadPool.QueueUserWorkItem(delegate { RunAiLoop(); });
-        }
-
-        private void OnClearKeyClick(object sender, EventArgs e)
-        {
-            txtApiKey.Text = "";
-            SaveSettings();
-            AppendLogSafe("API key cleared from local settings.");
-        }
-
         private void StartPlaybackFromSettings()
         {
-            if (macro.Events.Count == 0) return;
+            if (macro.Events.Count == 0)
+            {
+                RefreshState("No macro. Record with F8 or load a JSON first.");
+                return;
+            }
             SaveSettings();
             cancelRequested = false;
             int loops = chkLoopPlay.Checked ? (int)numMaxLoops.Value : 1;
             double speed = GetSelectedSpeed();
             bool smooth = chkSmooth.Checked;
             isPlaying = true;
-            RefreshState("Playing. Press PrtSc to stop playback.");
+            RefreshState(chkLoopPlay.Checked ? "Loop playback running. PrtSc stops." : "Playback running. PrtSc stops.");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 try
@@ -469,240 +582,13 @@ namespace AnPlayApp
             RefreshState("Stop requested.");
         }
 
-        private void RunAiLoop()
-        {
-            int loop = 0;
-            int consecutiveStop = 0;
-            int maxLoops = (int)GetControlValueSafe(numMaxLoops);
-            bool requireTwo = GetCheckedSafe(chkConfirmStopTwice);
-            string condition = GetTextSafe(txtCondition);
-
-            try
-            {
-                while (!cancelRequested)
-                {
-                    loop++;
-                    if (maxLoops > 0 && loop > maxLoops)
-                    {
-                        RefreshStateSafe("AI stopped: loop limit reached.");
-                        return;
-                    }
-
-                    SetStatusSafe("AI cycle " + loop + ": playing macro.");
-                    PlayMacroLoop(1, GetSelectedSpeedSafe(), GetCheckedSafe(chkSmooth));
-                    if (cancelRequested) break;
-
-                    int delaySeconds = (int)GetControlValueSafe(numDelay);
-                    SetStatusSafe("Waiting " + delaySeconds + "s before screen check.");
-                    SleepCancelable(delaySeconds * 1000);
-                    if (cancelRequested) break;
-
-                    GroqDecision decision = CheckStopCondition(condition, loop);
-                    if (decision.Stop)
-                    {
-                        bool terminalError = IsTerminalStopType(decision.StopType);
-                        consecutiveStop++;
-                        if (terminalError || !requireTwo || consecutiveStop >= 2)
-                        {
-                            RefreshStateSafe("AI stopped: " + decision.Reason);
-                            return;
-                        }
-                        AppendLogSafe("Stop detected once; confirming once more before stopping.");
-                    }
-                    else
-                    {
-                        consecutiveStop = 0;
-                    }
-                }
-                RefreshStateSafe("AI stopped by user.");
-            }
-            catch (Exception ex)
-            {
-                RefreshStateSafe("AI error: " + ex.Message);
-                AppendLogSafe(ex.ToString());
-            }
-            finally
-            {
-                isAiLoop = false;
-                isPlaying = false;
-                RefreshStateSafe(cancelRequested ? "AI stopped." : "Ready.");
-            }
-        }
-
-        private GroqDecision CheckStopCondition(string condition, int loop)
-        {
-            string key = GetTextSafe(txtApiKey).Trim();
-            if (key.Length == 0) key = Environment.GetEnvironmentVariable("GROQ_API_KEY");
-            if (String.IsNullOrEmpty(key)) throw new InvalidOperationException("Groq API key empty. Paste it once or set GROQ_API_KEY.");
-
-            string[] models = ParseModelList(GetTextSafe(txtModels));
-            SetStatusSafe("Capturing screen for AI check...");
-            string base64 = CaptureScreenJpegBase64(1280, 72L);
-
-            Exception lastError = null;
-            for (int i = 0; i < models.Length; i++)
-            {
-                string model = models[i];
-                try
-                {
-                    SetStatusSafe("Checking with " + model);
-                    GroqDecision decision = AskGroqVision(key, model, condition, base64, loop);
-                    ApplyLocalSafetyHeuristics(decision);
-                    if (decision.Stop && decision.Confidence < 0.80 && !IsTerminalStopType(decision.StopType))
-                    {
-                        decision.Stop = false;
-                        decision.Reason = "Low confidence stop blocked: " + decision.Reason;
-                    }
-                    AppendLogSafe("AI loop " + loop + " model=" + model
-                        + " stop=" + decision.Stop
-                        + " type=" + decision.StopType
-                        + " conf=" + decision.Confidence.ToString("0.00")
-                        + " evidence=" + Truncate(decision.Evidence, 110)
-                        + " reason=" + decision.Reason);
-                    return decision;
-                }
-                catch (Exception ex)
-                {
-                    lastError = ex;
-                    if (i < models.Length - 1 && ShouldRotateModel(ex))
-                    {
-                        AppendLogSafe("Model failed/limited: " + model + ". Rotating to " + models[i + 1] + ".");
-                        continue;
-                    }
-                    throw;
-                }
-            }
-            throw lastError ?? new InvalidOperationException("AI check failed.");
-        }
-
-        private GroqDecision AskGroqVision(string apiKey, string model, string condition, string base64Image, int loop)
-        {
-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-
-            string system =
-                "You are AnPlay's conservative desktop-state verifier. Return JSON only. "
-                + "Your job is to stop an automation loop when the screen has reached a success, OTP-waiting, or terminal-failure state.";
-
-            string prompt =
-                "User stop condition: \"" + condition + "\"\n"
-                + "Loop number: " + loop + "\n\n"
-                + "Reasoning rules:\n"
-                + "1. First OCR/read all visible text and status words on the screenshot.\n"
-                + "2. Indonesian phrase 'sudah tidak error X' or 'tidak error X' means: continue only while the exact error X is visible. Stop when X is absent AND the screen shows a stable next state such as OTP, kode akses, verification code, enter code, waiting for code, code sent, success, verified, dashboard, logged in, or similar.\n"
-                + "3. If the exact error 'Unable to send a verification code' is still visible, return stop=false.\n"
-                + "4. If the screen shows OTP/code input, waiting OTP, access code, verification code sent, or the number was accepted, return stop=true with stop_type='success'.\n"
-                + "5. If the screen shows Banned, ban, blocked, suspended, disabled, restricted, too many attempts, or abuse protection, return stop=true with stop_type='terminal_error' even if the user only asked for success. This prevents the loop from continuing after damage.\n"
-                + "6. If the screen is loading, blank, hidden, or ambiguous with no stable state, return stop=false with stop_type='ambiguous'.\n"
-                + "7. Do not guess. Quote visible evidence exactly when possible.\n\n"
-                + "Return JSON object only with keys: stop boolean, confidence number 0..1, stop_type string ('success','terminal_error','continue','ambiguous'), visible_text string, evidence string, reason string.";
-
-            var systemMessage = new Dictionary<string, object>();
-            systemMessage["role"] = "system";
-            systemMessage["content"] = system;
-
-            var textPart = new Dictionary<string, object>();
-            textPart["type"] = "text";
-            textPart["text"] = prompt;
-
-            var imageUrl = new Dictionary<string, object>();
-            imageUrl["url"] = "data:image/jpeg;base64," + base64Image;
-            var imagePart = new Dictionary<string, object>();
-            imagePart["type"] = "image_url";
-            imagePart["image_url"] = imageUrl;
-
-            var userMessage = new Dictionary<string, object>();
-            userMessage["role"] = "user";
-            userMessage["content"] = new object[] { textPart, imagePart };
-
-            var responseFormat = new Dictionary<string, object>();
-            responseFormat["type"] = "json_object";
-
-            var body = new Dictionary<string, object>();
-            body["model"] = model;
-            body["messages"] = new object[] { systemMessage, userMessage };
-            body["temperature"] = 0;
-            body["max_completion_tokens"] = 420;
-            body["response_format"] = responseFormat;
-
-            string requestJson = json.Serialize(body);
-            byte[] requestBytes = Encoding.UTF8.GetBytes(requestJson);
-
-            var request = (HttpWebRequest)WebRequest.Create("https://api.groq.com/openai/v1/chat/completions");
-            request.Method = "POST";
-            request.ContentType = "application/json";
-            request.Headers["Authorization"] = "Bearer " + apiKey;
-            request.Timeout = 60000;
-            request.ReadWriteTimeout = 60000;
-            using (var stream = request.GetRequestStream())
-            {
-                stream.Write(requestBytes, 0, requestBytes.Length);
-            }
-
-            string responseText;
-            try
-            {
-                using (var response = (HttpWebResponse)request.GetResponse())
-                using (var reader = new StreamReader(response.GetResponseStream()))
-                {
-                    responseText = reader.ReadToEnd();
-                }
-            }
-            catch (WebException ex)
-            {
-                string error = ex.Message;
-                string status = "";
-                var httpResponse = ex.Response as HttpWebResponse;
-                if (httpResponse != null) status = ((int)httpResponse.StatusCode).ToString() + " ";
-                if (ex.Response != null)
-                {
-                    using (var reader = new StreamReader(ex.Response.GetResponseStream()))
-                    {
-                        error = reader.ReadToEnd();
-                    }
-                }
-                throw new InvalidOperationException("Groq API error " + status + Truncate(error, 600));
-            }
-
-            var decisionObject = json.DeserializeObject(ExtractJsonObject(ExtractGroqContent(responseText))) as Dictionary<string, object>;
-            if (decisionObject == null) throw new InvalidOperationException("AI decision was not JSON.");
-
-            var decision = new GroqDecision();
-            decision.Stop = ToBool(GetDictValue(decisionObject, "stop"));
-            decision.Confidence = ToDouble(GetDictValue(decisionObject, "confidence"));
-            decision.StopType = Convert.ToString(GetDictValue(decisionObject, "stop_type") ?? "continue");
-            decision.VisibleText = Convert.ToString(GetDictValue(decisionObject, "visible_text") ?? "");
-            decision.Evidence = Convert.ToString(GetDictValue(decisionObject, "evidence") ?? "");
-            decision.Reason = Convert.ToString(GetDictValue(decisionObject, "reason") ?? "");
-            return decision;
-        }
-
-        private void ApplyLocalSafetyHeuristics(GroqDecision decision)
-        {
-            string combined = (decision.VisibleText + " " + decision.Evidence + " " + decision.Reason).ToLowerInvariant();
-            if (ContainsAny(combined, new[] { "banned", " ban ", "blocked", "suspended", "disabled", "restricted", "too many attempts", "abuse" }))
-            {
-                decision.Stop = true;
-                decision.Confidence = Math.Max(decision.Confidence, 0.95);
-                decision.StopType = "terminal_error";
-                if (String.IsNullOrWhiteSpace(decision.Reason)) decision.Reason = "Terminal failure state detected locally.";
-                return;
-            }
-
-            if (ContainsAny(combined, new[] { "otp", "verification code", "access code", "kode akses", "kode otp", "enter code", "waiting for code", "code sent", "sms code" }))
-            {
-                decision.Stop = true;
-                decision.Confidence = Math.Max(decision.Confidence, 0.88);
-                decision.StopType = "success";
-                if (String.IsNullOrWhiteSpace(decision.Reason)) decision.Reason = "OTP/code waiting state detected locally.";
-            }
-        }
-
         private void PlayMacroLoop(int requestedLoops, double speed, bool smooth)
         {
             int count = 0;
             while (!cancelRequested)
             {
                 count++;
+                SetStatusSafe(requestedLoops == 0 ? "Loop " + count + " running." : "Loop " + count + "/" + requestedLoops + " running.");
                 PlayMacroOnce(speed, smooth);
                 if (requestedLoops > 0 && count >= requestedLoops) break;
             }
@@ -836,7 +722,7 @@ namespace AnPlayApp
                 lastEventMs = now;
                 macro.Events.Add(ev);
             }
-            RefreshStateSafe("Recording...");
+            RefreshStateSafe("Recording. " + macro.Events.Count + " events captured.");
         }
 
         private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -851,20 +737,11 @@ namespace AnPlayApp
                     var data = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
                     if ((data.vkCode == VK_F8 || data.vkCode == VK_SNAPSHOT) && isDown)
                     {
-                        if (DebounceHotkey())
-                        {
-                            BeginInvoke((MethodInvoker)delegate { HandleGlobalHotkey(data.vkCode); });
-                        }
+                        if (DebounceHotkey()) BeginInvoke((MethodInvoker)delegate { HandleGlobalHotkey(data.vkCode); });
                         return (IntPtr)1;
                     }
-                    if ((data.vkCode == VK_F8 || data.vkCode == VK_SNAPSHOT) && isUp)
-                    {
-                        return (IntPtr)1;
-                    }
-                    if (isRecording)
-                    {
-                        AddEvent(new MacroEvent { Type = isDown ? "KeyDown" : "KeyUp", Vk = data.vkCode });
-                    }
+                    if ((data.vkCode == VK_F8 || data.vkCode == VK_SNAPSHOT) && isUp) return (IntPtr)1;
+                    if (isRecording) AddEvent(new MacroEvent { Type = isDown ? "KeyDown" : "KeyUp", Vk = data.vkCode });
                 }
             }
             return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
@@ -875,25 +752,25 @@ namespace AnPlayApp
             if (vk == VK_F8)
             {
                 if (isRecording) StopRecording();
-                else if (!isPlaying && !isAiLoop) BeginRecordingWithDelay();
+                else if (!isPlaying) StartRecording();
                 return;
             }
             if (vk == VK_SNAPSHOT)
             {
                 if (isRecording) return;
-                if (isPlaying || isAiLoop)
+                if (isPlaying)
                 {
                     StopActiveWork();
                     return;
                 }
-                if (macro.Events.Count > 0) StartPlaybackFromSettings();
+                StartPlaybackFromSettings();
             }
         }
 
         private bool DebounceHotkey()
         {
             int now = Environment.TickCount;
-            if (now - lastHotkeyMs < 350) return false;
+            if (now - lastHotkeyMs < 160) return false;
             lastHotkeyMs = now;
             return true;
         }
@@ -911,7 +788,7 @@ namespace AnPlayApp
                 {
                     int now = (int)stopwatch.ElapsedMilliseconds;
                     Point point = new Point(x, y);
-                    if (now - lastMoveMs >= 36 && Distance(lastMovePoint, point) >= 4)
+                    if (now - lastMoveMs >= 28 && Distance(lastMovePoint, point) >= 4)
                     {
                         lastMoveMs = now;
                         lastMovePoint = point;
@@ -969,55 +846,6 @@ namespace AnPlayApp
             }
         }
 
-        private string CaptureScreenJpegBase64(int maxWidth, long quality)
-        {
-            Rectangle bounds = SystemInformation.VirtualScreen;
-            using (var screenshot = new Bitmap(bounds.Width, bounds.Height))
-            {
-                using (var g = Graphics.FromImage(screenshot))
-                {
-                    g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
-                }
-                Image imageToSave = screenshot;
-                Bitmap resized = null;
-                if (screenshot.Width > maxWidth)
-                {
-                    double scale = maxWidth / (double)screenshot.Width;
-                    int newWidth = maxWidth;
-                    int newHeight = Math.Max(1, (int)Math.Round(screenshot.Height * scale));
-                    resized = new Bitmap(newWidth, newHeight);
-                    using (var g = Graphics.FromImage(resized))
-                    {
-                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        g.DrawImage(screenshot, 0, 0, newWidth, newHeight);
-                    }
-                    imageToSave = resized;
-                }
-                try
-                {
-                    using (var ms = new MemoryStream())
-                    {
-                        ImageCodecInfo encoder = GetJpegEncoder();
-                        if (encoder != null)
-                        {
-                            var ep = new EncoderParameters(1);
-                            ep.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, quality);
-                            imageToSave.Save(ms, encoder, ep);
-                        }
-                        else
-                        {
-                            imageToSave.Save(ms, ImageFormat.Jpeg);
-                        }
-                        return Convert.ToBase64String(ms.ToArray());
-                    }
-                }
-                finally
-                {
-                    if (resized != null) resized.Dispose();
-                }
-            }
-        }
-
         private void LoadSettings()
         {
             loadingSettings = true;
@@ -1029,15 +857,11 @@ namespace AnPlayApp
                 if (hasSettings) settings = json.Deserialize<AppSettings>(File.ReadAllText(path, Encoding.UTF8));
                 if (settings == null) settings = new AppSettings();
 
-                txtApiKey.Text = UnprotectString(settings.ApiKeyProtected);
-                txtCondition.Text = String.IsNullOrWhiteSpace(settings.Condition) ? DefaultCondition : settings.Condition;
-                txtModels.Text = String.IsNullOrWhiteSpace(settings.Models) ? DefaultVisionModels : settings.Models;
                 SetSpeedSelection(String.IsNullOrWhiteSpace(settings.Speed) ? "1" : settings.Speed);
                 chkLoopPlay.Checked = settings.LoopPlay;
                 numMaxLoops.Value = Clamp(settings.MaxLoops, (int)numMaxLoops.Minimum, (int)numMaxLoops.Maximum);
                 chkSmooth.Checked = hasSettings ? settings.SmoothMouse : true;
-                numDelay.Value = Clamp(settings.CheckDelaySeconds <= 0 ? 2 : settings.CheckDelaySeconds, (int)numDelay.Minimum, (int)numDelay.Maximum);
-                chkConfirmStopTwice.Checked = hasSettings ? settings.ConfirmStopTwice : true;
+                chkDarkTheme.Checked = hasSettings ? settings.DarkTheme : true;
             }
             catch (Exception ex)
             {
@@ -1055,15 +879,11 @@ namespace AnPlayApp
             try
             {
                 var settings = new AppSettings();
-                settings.ApiKeyProtected = ProtectString(txtApiKey.Text.Trim());
-                settings.Condition = txtCondition.Text;
-                settings.Models = txtModels.Text;
                 settings.Speed = Convert.ToString(cmbSpeed.SelectedItem ?? "1");
                 settings.LoopPlay = chkLoopPlay.Checked;
                 settings.MaxLoops = (int)numMaxLoops.Value;
                 settings.SmoothMouse = chkSmooth.Checked;
-                settings.CheckDelaySeconds = (int)numDelay.Value;
-                settings.ConfirmStopTwice = chkConfirmStopTwice.Checked;
+                settings.DarkTheme = chkDarkTheme.Checked;
 
                 string path = SettingsPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
@@ -1080,117 +900,18 @@ namespace AnPlayApp
             if (loadingSettings || settingsTimer == null) return;
             settingsTimer.Stop();
             settingsTimer.Start();
+            RefreshState(lblStatus.Text);
+        }
+
+        private void OnDarkThemeChanged(object sender, EventArgs e)
+        {
+            if (!loadingSettings) SaveSettings();
+            ApplyTheme();
         }
 
         private static string SettingsPath()
         {
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnPlay", "settings.json");
-        }
-
-        private static string ProtectString(string value)
-        {
-            if (String.IsNullOrEmpty(value)) return "";
-            byte[] bytes = Encoding.UTF8.GetBytes(value);
-            byte[] protectedBytes = ProtectedData.Protect(bytes, null, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(protectedBytes);
-        }
-
-        private static string UnprotectString(string value)
-        {
-            if (String.IsNullOrEmpty(value)) return "";
-            try
-            {
-                byte[] bytes = Convert.FromBase64String(value);
-                byte[] plain = ProtectedData.Unprotect(bytes, null, DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(plain);
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        private string[] ParseModelList(string value)
-        {
-            if (String.IsNullOrWhiteSpace(value)) value = DefaultVisionModels;
-            string[] raw = value.Split(new char[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
-            var models = new List<string>();
-            foreach (string item in raw)
-            {
-                string model = item.Trim();
-                if (model.Length > 0 && !models.Contains(model)) models.Add(model);
-            }
-            if (models.Count == 0) models.Add("meta-llama/llama-4-maverick-17b-128e-instruct");
-            return models.ToArray();
-        }
-
-        private bool ShouldRotateModel(Exception ex)
-        {
-            string msg = ex == null ? "" : ex.Message.ToLowerInvariant();
-            if (msg.Contains("401") || msg.Contains("invalid api key") || msg.Contains("unauthorized")) return false;
-            return ContainsAny(msg, new[] { "429", "rate limit", "rate_limit", "too many requests", "quota", "limit exceeded", "model", "does not support", "403", "404", "500", "503" });
-        }
-
-        private string ExtractGroqContent(string responseText)
-        {
-            var root = json.DeserializeObject(responseText) as Dictionary<string, object>;
-            if (root == null || !root.ContainsKey("choices")) throw new InvalidOperationException("Groq response missing choices.");
-            var choices = root["choices"] as object[];
-            if (choices == null || choices.Length == 0) throw new InvalidOperationException("Groq choices empty.");
-            var choice = choices[0] as Dictionary<string, object>;
-            var message = choice != null && choice.ContainsKey("message") ? choice["message"] as Dictionary<string, object> : null;
-            if (message == null || !message.ContainsKey("content")) throw new InvalidOperationException("Groq message content missing.");
-            return Convert.ToString(message["content"]);
-        }
-
-        private static object GetDictValue(Dictionary<string, object> dict, string key)
-        {
-            return dict.ContainsKey(key) ? dict[key] : null;
-        }
-
-        private static string ExtractJsonObject(string text)
-        {
-            if (text == null) return "{}";
-            string trimmed = text.Trim();
-            if (trimmed.StartsWith("```"))
-            {
-                int firstLine = trimmed.IndexOf('\n');
-                if (firstLine >= 0) trimmed = trimmed.Substring(firstLine + 1);
-                int fence = trimmed.LastIndexOf("```");
-                if (fence >= 0) trimmed = trimmed.Substring(0, fence);
-                trimmed = trimmed.Trim();
-            }
-            int start = trimmed.IndexOf('{');
-            int end = trimmed.LastIndexOf('}');
-            if (start >= 0 && end > start) return trimmed.Substring(start, end - start + 1);
-            return trimmed;
-        }
-
-        private static bool ToBool(object value)
-        {
-            if (value is bool) return (bool)value;
-            string s = Convert.ToString(value).Trim().ToLowerInvariant();
-            return s == "true" || s == "1" || s == "yes";
-        }
-
-        private static double ToDouble(object value)
-        {
-            try { return Convert.ToDouble(value); }
-            catch { return 0; }
-        }
-
-        private static bool ContainsAny(string haystack, string[] needles)
-        {
-            foreach (string needle in needles)
-            {
-                if (haystack.Contains(needle)) return true;
-            }
-            return false;
-        }
-
-        private static bool IsTerminalStopType(string stopType)
-        {
-            return Convert.ToString(stopType).ToLowerInvariant().Contains("terminal");
         }
 
         private static int AdjustDelay(int delayMs, double speed)
@@ -1218,22 +939,12 @@ namespace AnPlayApp
             return "Left";
         }
 
-        private static ImageCodecInfo GetJpegEncoder()
-        {
-            ImageCodecInfo[] encoders = ImageCodecInfo.GetImageDecoders();
-            foreach (ImageCodecInfo encoder in encoders)
-            {
-                if (encoder.FormatID == ImageFormat.Jpeg.Guid) return encoder;
-            }
-            return null;
-        }
-
         private void SleepCancelable(int ms)
         {
             int remaining = ms;
             while (remaining > 0 && !cancelRequested)
             {
-                int chunk = Math.Min(remaining, 40);
+                int chunk = Math.Min(remaining, 30);
                 Thread.Sleep(chunk);
                 remaining -= chunk;
             }
@@ -1241,38 +952,25 @@ namespace AnPlayApp
 
         private void RefreshState(string status)
         {
-            lblCount.Text = macro.Events.Count + " events | F8 Rec | PrtSc Play";
+            int eventCount = macro.Events == null ? 0 : macro.Events.Count;
+            string loop = chkLoopPlay != null && chkLoopPlay.Checked
+                ? ((int)numMaxLoops.Value == 0 ? "loop unlimited" : "loop " + (int)numMaxLoops.Value)
+                : "single play";
+            lblCount.Text = eventCount + " events | " + loop + " | F8 Rec | PrtSc Play";
             lblStatus.Text = status;
 
-            if (isRecording)
-            {
-                pnlState.BackColor = Color.FromArgb(36, 170, 82);
-                btnRecord.BackColor = Color.FromArgb(36, 170, 82);
-                btnRecord.ForeColor = Color.White;
-                btnRecord.Text = "Recording";
-            }
-            else if (isPlaying || isAiLoop)
-            {
-                pnlState.BackColor = Color.FromArgb(36, 104, 220);
-                btnRecord.BackColor = SystemColors.Control;
-                btnRecord.ForeColor = SystemColors.ControlText;
-                btnRecord.Text = "Rec F8";
-            }
-            else
-            {
-                pnlState.BackColor = Color.FromArgb(210, 48, 58);
-                btnRecord.BackColor = Color.FromArgb(210, 48, 58);
-                btnRecord.ForeColor = Color.White;
-                btnRecord.Text = "Rec F8";
-            }
+            if (isRecording) lblMode.Text = "REC";
+            else if (isPlaying) lblMode.Text = chkLoopPlay.Checked ? "LOOP" : "PLAY";
+            else lblMode.Text = "READY";
 
-            btnPlay.Text = isPlaying ? "Stop Play" : "Play PrtSc";
-            btnAiLoop.Text = isAiLoop ? "Stop AI" : "Start AI";
-            btnRecord.Enabled = !isPlaying && !isAiLoop;
-            btnPlay.Enabled = !isRecording && !isAiLoop && macro.Events.Count > 0;
-            btnAiLoop.Enabled = !isRecording && !isPlaying && macro.Events.Count > 0;
-            btnSave.Enabled = !isRecording && macro.Events.Count > 0;
-            btnLoad.Enabled = !isRecording && !isPlaying && !isAiLoop;
+            btnRecord.Text = isRecording ? "Stop F8" : "F8 Record";
+            btnPlay.Text = isPlaying ? "Stop PrtSc" : "PrtSc Play";
+            btnRecord.Enabled = !isPlaying || isRecording;
+            btnPlay.Enabled = !isRecording && eventCount > 0;
+            btnSave.Enabled = !isRecording && eventCount > 0;
+            btnLoad.Enabled = !isRecording && !isPlaying;
+            btnStop.Enabled = isRecording || isPlaying;
+            if (statusPill != null) statusPill.Invalidate();
         }
 
         private void RefreshStateSafe(string status)
@@ -1298,30 +996,6 @@ namespace AnPlayApp
                 });
             }
             catch { }
-        }
-
-        private string GetTextSafe(TextBox box)
-        {
-            if (box.InvokeRequired) return (string)box.Invoke(new Func<string>(delegate { return box.Text; }));
-            return box.Text;
-        }
-
-        private decimal GetControlValueSafe(NumericUpDown box)
-        {
-            if (box.InvokeRequired) return (decimal)box.Invoke(new Func<decimal>(delegate { return box.Value; }));
-            return box.Value;
-        }
-
-        private bool GetCheckedSafe(CheckBox box)
-        {
-            if (box.InvokeRequired) return (bool)box.Invoke(new Func<bool>(delegate { return box.Checked; }));
-            return box.Checked;
-        }
-
-        private double GetSelectedSpeedSafe()
-        {
-            if (cmbSpeed.InvokeRequired) return (double)cmbSpeed.Invoke(new Func<double>(GetSelectedSpeed));
-            return GetSelectedSpeed();
         }
 
         private double GetSelectedSpeed()
@@ -1352,10 +1026,16 @@ namespace AnPlayApp
             return Math.Max(min, Math.Min(max, value));
         }
 
-        private static string Truncate(string value, int limit)
+        private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
         {
-            if (String.IsNullOrEmpty(value) || value.Length <= limit) return value;
-            return value.Substring(0, limit);
+            int d = radius * 2;
+            var path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         [STAThread]
@@ -1390,6 +1070,99 @@ namespace AnPlayApp
             public int flags;
             public int time;
             public IntPtr dwExtraInfo;
+        }
+
+        private sealed class GradientPanel : Panel
+        {
+            public Color ColorA { get; set; }
+            public Color ColorB { get; set; }
+            public int Radius { get; set; }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle rect = new Rectangle(0, 0, Width - 1, Height - 1);
+                using (var path = RoundedRect(rect, Radius))
+                using (var brush = new LinearGradientBrush(rect, ColorA, ColorB, 0F))
+                {
+                    e.Graphics.FillPath(brush, path);
+                }
+            }
+        }
+
+        private sealed class LogoPanel : Panel
+        {
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var outer = new SolidBrush(Color.FromArgb(18, 211, 238)))
+                using (var inner = new SolidBrush(Color.FromArgb(15, 23, 42)))
+                using (var white = new SolidBrush(Color.White))
+                using (var amber = new SolidBrush(Color.FromArgb(245, 158, 11)))
+                {
+                    e.Graphics.FillEllipse(outer, 0, 0, 54, 54);
+                    e.Graphics.FillEllipse(inner, 5, 5, 44, 44);
+                    e.Graphics.FillRectangle(white, 16, 16, 5, 22);
+                    e.Graphics.FillPolygon(white, new[] { new Point(24, 38), new Point(36, 16), new Point(41, 16), new Point(29, 38) });
+                    e.Graphics.FillPolygon(amber, new[] { new Point(34, 28), new Point(44, 34), new Point(34, 40) });
+                }
+            }
+        }
+
+        private sealed class Theme
+        {
+            public Color Background;
+            public Color Card;
+            public Color Input;
+            public Color Text;
+            public Color Muted;
+            public Color Border;
+            public Color Primary;
+            public Color Secondary;
+            public Color Good;
+            public Color Danger;
+            public Color HeroA;
+            public Color HeroB;
+
+            public static Theme Dark()
+            {
+                return new Theme
+                {
+                    Background = Color.FromArgb(8, 13, 24),
+                    Card = Color.FromArgb(16, 24, 39),
+                    Input = Color.FromArgb(11, 18, 32),
+                    Text = Color.FromArgb(241, 245, 249),
+                    Muted = Color.FromArgb(148, 163, 184),
+                    Border = Color.FromArgb(47, 65, 87),
+                    Primary = Color.FromArgb(37, 99, 235),
+                    Secondary = Color.FromArgb(124, 58, 237),
+                    Good = Color.FromArgb(5, 150, 105),
+                    Danger = Color.FromArgb(220, 38, 38),
+                    HeroA = Color.FromArgb(15, 23, 42),
+                    HeroB = Color.FromArgb(21, 94, 117)
+                };
+            }
+
+            public static Theme Light()
+            {
+                return new Theme
+                {
+                    Background = Color.FromArgb(248, 250, 252),
+                    Card = Color.White,
+                    Input = Color.White,
+                    Text = Color.FromArgb(15, 23, 42),
+                    Muted = Color.FromArgb(71, 85, 105),
+                    Border = Color.FromArgb(226, 232, 240),
+                    Primary = Color.FromArgb(37, 99, 235),
+                    Secondary = Color.FromArgb(109, 40, 217),
+                    Good = Color.FromArgb(22, 163, 74),
+                    Danger = Color.FromArgb(220, 38, 38),
+                    HeroA = Color.FromArgb(37, 99, 235),
+                    HeroB = Color.FromArgb(20, 184, 166)
+                };
+            }
         }
 
         [DllImport("user32.dll", SetLastError = true)]
